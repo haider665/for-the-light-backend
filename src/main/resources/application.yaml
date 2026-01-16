@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: for-the-light-backend
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ----
+            client-secret: ----
+            scope:
+              - email
+              - profile
+              - openid
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+
+server:
+  servlet:
+    session:
+      cookie:
+        same-site: none
+        secure: true
+  forward-headers-strategy: native
+
+logging:
+  level:
+    root: INFO
+    org.springframework.security: DEBUG
+    org.springframework.security.web.authentication: TRACE
+    org.springframework.security.web.authentication.logout: TRACE
+    org.springframework.security.oauth2: DEBUG
+    org.springframework.security.oauth2.client: TRACE
+    org.springframework.security.oauth2.client.web: TRACE
+    org.springframework.security.oauth2.client.endpoint: TRACE
+    org.springframework.security.oauth2.core: TRACE
