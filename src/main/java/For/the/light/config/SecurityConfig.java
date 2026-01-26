@@ -36,7 +36,8 @@ public class SecurityConfig {
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/public/**", "/oauth2/**", "/login**", "/actuator", "/csrf").permitAll()
+                        .requestMatchers("/api/public/**", "/oauth2/**", "/login**", "/actuator/**", "/csrf")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/incident/all/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/user/details").authenticated()
                         .requestMatchers("/incident/**").authenticated()
