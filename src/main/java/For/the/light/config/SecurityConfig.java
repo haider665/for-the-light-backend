@@ -1,5 +1,6 @@
 package For.the.light.config;
 
+import lombok.extern.slf4j.Slf4j;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @Configuration
+@Slf4j
 public class SecurityConfig {
 
     @Value("${app.custom.redirect-uri}")
@@ -49,6 +51,11 @@ public class SecurityConfig {
                         .logoutUrl("/logout")
                         .deleteCookies("JSESSIONID", "XSRF-TOKEN")
                         .logoutSuccessHandler((req, res, auth) -> {
+                            if (auth != null) {
+                                log.info("User logged out: {}", auth.getName());
+                            } else {
+                                log.info("User logged out (no active session found)");
+                            }
                             res.setStatus(HttpServletResponse.SC_OK);
                             res.setContentType("application/json");
                             res.getWriter().write("{\"message\":\"Logged out successfully\"}");
