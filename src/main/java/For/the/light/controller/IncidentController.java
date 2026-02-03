@@ -33,8 +33,8 @@ public class IncidentController {
 
         log.info("New Incident: {}", dto);
 
-        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
-        String email = oAuth2User.getAttribute("email");
+        // JWT flow: principal is UserDetails with username=email
+        String email = authentication.getName();
         incidentService.createIncident(dto, email);
 
         log.info("Incident created");
@@ -47,8 +47,8 @@ public class IncidentController {
     public ResponseEntity<List<IncidentResponseDTO>> getUserIncidents(
             Authentication authentication) {
 
-        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
-        String email = oAuth2User.getAttribute("email");
+        // JWT flow: principal is UserDetails with username=email
+        String email = authentication.getName();
 
         List<IncidentResponseDTO> incidents = incidentService.getUserIncidents(email);
         return ResponseEntity.ok(incidents);
@@ -60,8 +60,8 @@ public class IncidentController {
             @PathVariable Long id,
             Authentication authentication) {
 
-        OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
-        String email = oAuth2User.getAttribute("email");
+        // JWT flow: principal is UserDetails with username=email
+        String email = authentication.getName();
 
         IncidentResponseDTO incident = incidentService.getIncidentById(id, email);
         return ResponseEntity.ok(incident);
