@@ -1,6 +1,5 @@
 package For.the.light.service;
 
-
 import For.the.light.entity.Role;
 import For.the.light.entity.User;
 import For.the.light.repository.UserRepository;
@@ -9,6 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 
 @Service
 public class UserService {
@@ -59,5 +60,30 @@ public class UserService {
             user.removeRole(role);
             userRepository.save(user);
         });
+    }
+
+    @Transactional
+    public void updateUserRoles(Long targetUserId, Set<Role> newRoles, String currentUserEmail) {
+        User currentUser = getUserByEmail(currentUserEmail);
+
+        if (currentUser == null) {
+            throw new IllegalArgumentException("Current user not found");
+        }
+
+        // Prevent users from modifying their own roles
+        if (currentUser.getId().equals(targetUserId)) {
+            throw new IllegalArgumentException("You cannot modify your own roles");
+        }
+
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Target user not found"));
+
+        // Add new roles to existing ones (don't clear)
+        targetUser.getRoles().addAll(newRoles);
+        userRepository.save(targetUser);
+    }
+
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
     }
 }
