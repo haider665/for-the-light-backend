@@ -34,7 +34,7 @@ public class IncidentService {
         Incident incident = new Incident();
         incident.setTitle(dto.getTitle());
         incident.setDescription(dto.getDescription());
-        incident.setStatus(IncidentStatus.PENDING);
+        incident.setStatus(IncidentStatus.DRAFT);
         incident.setUser(user);
 
         if (dto.getLocation() != null) {
@@ -43,8 +43,7 @@ public class IncidentService {
                     dto.getLocation().getDistrict(),
                     dto.getLocation().getUpazila(),
                     dto.getLocation().getLat(),
-                    dto.getLocation().getLng()
-            );
+                    dto.getLocation().getLng());
             incident.setLocation(location);
         }
 
@@ -93,9 +92,83 @@ public class IncidentService {
     }
 
     @Transactional(readOnly = true)
+    public List<IncidentResponseDTO> getAllAvailableIncidents() {
+        List<Incident> incidents = incidentRepository.findAllByStatusNotIn(
+                List.of(IncidentStatus.DRAFT, IncidentStatus.REJECTED)
+        );
+
+        return incidents.stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public IncidentResponseDTO getPublicIncidentById(Long id) {
         Incident incident = incidentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        return convertToResponseDTO(incident);
+    }
+
+    @Transactional
+    public IncidentResponseDTO updateIncidentStatus(Long id, IncidentStatus status) {
+        Incident incident = incidentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        incident.setStatus(status);
+        incidentRepository.save(incident);
+
+        return convertToResponseDTO(incident);
+    }
+
+    @Transactional
+    public IncidentResponseDTO updateIncident(Long id, IncidentDTO dto, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Incident incident = incidentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        if (!incident.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Access denied");
+        }
+
+        incident.setTitle(dto.getTitle());
+        incident.setDescription(dto.getDescription());
+
+        if (dto.getLocation() != null) {
+            Location location = new Location(
+                    dto.getLocation().getDivision(),
+                    dto.getLocation().getDistrict(),
+                    dto.getLocation().getUpazila(),
+                    dto.getLocation().getLat(),
+                    dto.getLocation().getLng());
+            incident.setLocation(location);
+        }
+
+        if (dto.getImages() != null) {
+            incident.setImages(dto.getImages());
+        }
+
+        incidentRepository.save(incident);
+
+        return convertToResponseDTO(incident);
+    }
+
+    @Transactional
+    public IncidentResponseDTO updateIncidentStatusByUser(Long id, IncidentStatus status, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Incident incident = incidentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        if (!incident.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Access denied");
+        }
+
+        incident.setStatus(status);
+        incidentRepository.save(incident);
 
         return convertToResponseDTO(incident);
     }
@@ -118,8 +191,7 @@ public class IncidentService {
                     incident.getLocation().getDistrict(),
                     incident.getLocation().getUpazila(),
                     incident.getLocation().getLat(),
-                    incident.getLocation().getLng()
-            );
+                    incident.getLocation().getLng());
             dto.setLocation(locationDTO);
         }
 
