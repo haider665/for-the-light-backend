@@ -34,15 +34,19 @@ public class IncidentDTO {
     @Size(max = 10, message = "Maximum 10 images allowed")
     private List<String> images = new ArrayList<>();
 
+    private String videoUrl;
+
     // Constructors
     public IncidentDTO() {
     }
 
-    public IncidentDTO(String title, String description, String status, LocationDTO location, List<String> images) {
+    public IncidentDTO(String title, String description, String status, LocationDTO location, List<String> images,
+            String videoUrl) {
         this.title = title;
         this.description = description;
         this.status = status;
         this.location = location;
         this.images = images;
+        this.videoUrl = videoUrl;
     }
 }

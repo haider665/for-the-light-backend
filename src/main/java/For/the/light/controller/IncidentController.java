@@ -1,5 +1,7 @@
 package For.the.light.controller;
 
+import For.the.light.dto.CommentDTO;
+import For.the.light.dto.CommentResponseDTO;
 import For.the.light.dto.IncidentDTO;
 import For.the.light.dto.IncidentResponseDTO;
 import For.the.light.dto.IncidentStatusUpdateDto;
@@ -55,15 +57,8 @@ public class IncidentController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('USER')")
-    public ResponseEntity<IncidentResponseDTO> getIncidentById(
-            @PathVariable Long id,
-            Authentication authentication) {
-
-        // JWT flow: principal is UserDetails with username=email
-        String email = authentication.getName();
-
-        IncidentResponseDTO incident = incidentService.getIncidentById(id, email);
+    public ResponseEntity<IncidentResponseDTO> getIncidentById(@PathVariable Long id) {
+        IncidentResponseDTO incident = incidentService.getPublicIncidentById(id);
         return ResponseEntity.ok(incident);
     }
 
@@ -119,5 +114,17 @@ public class IncidentController {
         IncidentResponseDTO updatedIncident = incidentService.updateIncidentStatusByUser(id, request.getStatus(),
                 email);
         return ResponseEntity.ok(updatedIncident);
+    }
+
+    @PostMapping("/{id}/comment")
+    @PreAuthorize("hasAuthority('USER')")
+    public ResponseEntity<CommentResponseDTO> addComment(
+            @PathVariable Long id,
+            @Valid @RequestBody CommentDTO dto,
+            Authentication authentication) {
+        String email = authentication.getName();
+        log.info("Request to add comment to incident {} by user {}", id, email);
+        CommentResponseDTO comment = incidentService.addComment(id, dto, email);
+        return ResponseEntity.status(HttpStatus.CREATED).body(comment);
     }
 }
