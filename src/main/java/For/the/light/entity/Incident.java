@@ -41,6 +41,9 @@ public class Incident {
     @Column(name = "image_url", length = 1000)
     private List<String> images = new ArrayList<>();
 
+    @Column(name = "video_url", length = 1000)
+    private String videoUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

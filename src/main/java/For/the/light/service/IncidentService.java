@@ -1,12 +1,16 @@
 package For.the.light.service;
 
+import For.the.light.dto.CommentDTO;
+import For.the.light.dto.CommentResponseDTO;
 import For.the.light.dto.IncidentDTO;
 import For.the.light.dto.IncidentResponseDTO;
 import For.the.light.dto.LocationDTO;
+import For.the.light.entity.Comment;
 import For.the.light.entity.Incident;
 import For.the.light.entity.IncidentStatus;
 import For.the.light.entity.Location;
 import For.the.light.entity.User;
+import For.the.light.repository.CommentRepository;
 import For.the.light.repository.IncidentRepository;
 import For.the.light.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -20,10 +24,14 @@ public class IncidentService {
 
     private final IncidentRepository incidentRepository;
     private final UserRepository userRepository;
+    private final CommentRepository commentRepository;
 
-    public IncidentService(IncidentRepository incidentRepository, UserRepository userRepository) {
+    public IncidentService(IncidentRepository incidentRepository,
+            UserRepository userRepository,
+            CommentRepository commentRepository) {
         this.incidentRepository = incidentRepository;
         this.userRepository = userRepository;
+        this.commentRepository = commentRepository;
     }
 
     @Transactional
@@ -49,6 +57,10 @@ public class IncidentService {
 
         if (dto.getImages() != null && !dto.getImages().isEmpty()) {
             incident.setImages(dto.getImages());
+        }
+
+        if (dto.getVideoUrl() != null) {
+            incident.setVideoUrl(dto.getVideoUrl());
         }
 
         incidentRepository.save(incident);
@@ -93,9 +105,8 @@ public class IncidentService {
 
     @Transactional(readOnly = true)
     public List<IncidentResponseDTO> getAllAvailableIncidents() {
-        List<Incident> incidents = incidentRepository.findAllByStatusNotIn(
-                List.of(IncidentStatus.DRAFT, IncidentStatus.REJECTED)
-        );
+        List<Incident> incidents = incidentRepository.findAllByStatusIn(
+                List.of(IncidentStatus.SERVICE_REQUESTED, IncidentStatus.IN_PROGRESS, IncidentStatus.RESOLVED));
 
         return incidents.stream()
                 .map(this::convertToResponseDTO)
@@ -150,6 +161,10 @@ public class IncidentService {
             incident.setImages(dto.getImages());
         }
 
+        if (dto.getVideoUrl() != null) {
+            incident.setVideoUrl(dto.getVideoUrl());
+        }
+
         incidentRepository.save(incident);
 
         return convertToResponseDTO(incident);
@@ -173,6 +188,20 @@ public class IncidentService {
         return convertToResponseDTO(incident);
     }
 
+    @Transactional
+    public CommentResponseDTO addComment(Long incidentId, CommentDTO dto, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        Comment comment = new Comment(dto.getContent(), incident, user);
+        comment = commentRepository.save(comment);
+
+        return convertToCommentResponseDTO(comment);
+    }
+
     private IncidentResponseDTO convertToResponseDTO(Incident incident) {
         IncidentResponseDTO dto = new IncidentResponseDTO();
         dto.setId(incident.getId());
@@ -180,6 +209,7 @@ public class IncidentService {
         dto.setDescription(incident.getDescription());
         dto.setStatus(incident.getStatus());
         dto.setImages(incident.getImages());
+        dto.setVideoUrl(incident.getVideoUrl());
         dto.setUserId(incident.getUser().getId());
         dto.setUserName(incident.getUser().getName());
         dto.setCreatedAt(incident.getCreatedAt());
@@ -195,6 +225,24 @@ public class IncidentService {
             dto.setLocation(locationDTO);
         }
 
+        List<Comment> comments = commentRepository.findByIncidentIdOrderByCreatedAtDesc(incident.getId());
+        List<CommentResponseDTO> commentDTOs = comments.stream()
+                .map(this::convertToCommentResponseDTO)
+                .collect(Collectors.toList());
+        dto.setComments(commentDTOs);
+
+        return dto;
+    }
+
+    private CommentResponseDTO convertToCommentResponseDTO(Comment comment) {
+        CommentResponseDTO dto = new CommentResponseDTO();
+        dto.setId(comment.getId());
+        dto.setContent(comment.getContent());
+        dto.setUserId(comment.getUser().getId());
+        dto.setUserName(comment.getUser().getName());
+        dto.setIncidentId(comment.getIncident().getId());
+        dto.setCreatedAt(comment.getCreatedAt());
+        dto.setUpdatedAt(comment.getUpdatedAt());
         return dto;
     }
 }

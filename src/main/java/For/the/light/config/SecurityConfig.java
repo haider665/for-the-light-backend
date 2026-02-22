@@ -48,6 +48,7 @@ public class SecurityConfig {
                                                                 "/actuator/**", "/csrf")
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/incident/available").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/incident/*").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/program/available").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/program/*").permitAll()
                                                 .anyRequest().authenticated())

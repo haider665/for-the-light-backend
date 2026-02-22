@@ -20,6 +20,6 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
 
     List<Incident> findAllByOrderByCreatedAtDesc();
 
-    List<Incident> findAllByStatusNotIn(Collection<IncidentStatus> statuses);
+    List<Incident> findAllByStatusIn(Collection<IncidentStatus> statuses);
 
 }

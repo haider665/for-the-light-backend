@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -21,4 +22,6 @@ public class IncidentResponseDTO {
     private String userName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String videoUrl;
+    private List<CommentResponseDTO> comments = new ArrayList<>();
 }
