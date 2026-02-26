@@ -6,10 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Controller;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -22,9 +20,9 @@ public class HomeController {
     }
 
     @GetMapping("/test")
-    public ResponseEntity test() {
+    public ResponseEntity<String> test() {
         log.info("Hello World test!");
-        return new ResponseEntity("Hello World Test!", HttpStatus.OK);
+        return new ResponseEntity<>("Hello World Test!", HttpStatus.OK);
     }
 
     @GetMapping("/user-info")

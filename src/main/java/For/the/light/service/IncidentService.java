@@ -1,12 +1,16 @@
 package For.the.light.service;
 
+import For.the.light.dto.CommentDTO;
+import For.the.light.dto.CommentResponseDTO;
 import For.the.light.dto.IncidentDTO;
 import For.the.light.dto.IncidentResponseDTO;
 import For.the.light.dto.LocationDTO;
+import For.the.light.entity.Comment;
 import For.the.light.entity.Incident;
 import For.the.light.entity.IncidentStatus;
 import For.the.light.entity.Location;
 import For.the.light.entity.User;
+import For.the.light.repository.CommentRepository;
 import For.the.light.repository.IncidentRepository;
 import For.the.light.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -20,10 +24,14 @@ public class IncidentService {
 
     private final IncidentRepository incidentRepository;
     private final UserRepository userRepository;
+    private final CommentRepository commentRepository;
 
-    public IncidentService(IncidentRepository incidentRepository, UserRepository userRepository) {
+    public IncidentService(IncidentRepository incidentRepository,
+            UserRepository userRepository,
+            CommentRepository commentRepository) {
         this.incidentRepository = incidentRepository;
         this.userRepository = userRepository;
+        this.commentRepository = commentRepository;
     }
 
     @Transactional
@@ -34,7 +42,7 @@ public class IncidentService {
         Incident incident = new Incident();
         incident.setTitle(dto.getTitle());
         incident.setDescription(dto.getDescription());
-        incident.setStatus(IncidentStatus.PENDING);
+        incident.setStatus(IncidentStatus.DRAFT);
         incident.setUser(user);
 
         if (dto.getLocation() != null) {
@@ -43,13 +51,16 @@ public class IncidentService {
                     dto.getLocation().getDistrict(),
                     dto.getLocation().getUpazila(),
                     dto.getLocation().getLat(),
-                    dto.getLocation().getLng()
-            );
+                    dto.getLocation().getLng());
             incident.setLocation(location);
         }
 
         if (dto.getImages() != null && !dto.getImages().isEmpty()) {
             incident.setImages(dto.getImages());
+        }
+
+        if (dto.getVideoUrl() != null) {
+            incident.setVideoUrl(dto.getVideoUrl());
         }
 
         incidentRepository.save(incident);
@@ -93,11 +104,102 @@ public class IncidentService {
     }
 
     @Transactional(readOnly = true)
+    public List<IncidentResponseDTO> getAllAvailableIncidents() {
+        List<Incident> incidents = incidentRepository.findAllByStatusIn(
+                List.of(IncidentStatus.SERVICE_REQUESTED, IncidentStatus.IN_PROGRESS, IncidentStatus.RESOLVED));
+
+        return incidents.stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public IncidentResponseDTO getPublicIncidentById(Long id) {
         Incident incident = incidentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Incident not found"));
 
         return convertToResponseDTO(incident);
+    }
+
+    @Transactional
+    public IncidentResponseDTO updateIncidentStatus(Long id, IncidentStatus status) {
+        Incident incident = incidentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        incident.setStatus(status);
+        incidentRepository.save(incident);
+
+        return convertToResponseDTO(incident);
+    }
+
+    @Transactional
+    public IncidentResponseDTO updateIncident(Long id, IncidentDTO dto, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Incident incident = incidentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        if (!incident.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Access denied");
+        }
+
+        incident.setTitle(dto.getTitle());
+        incident.setDescription(dto.getDescription());
+
+        if (dto.getLocation() != null) {
+            Location location = new Location(
+                    dto.getLocation().getDivision(),
+                    dto.getLocation().getDistrict(),
+                    dto.getLocation().getUpazila(),
+                    dto.getLocation().getLat(),
+                    dto.getLocation().getLng());
+            incident.setLocation(location);
+        }
+
+        if (dto.getImages() != null) {
+            incident.setImages(dto.getImages());
+        }
+
+        if (dto.getVideoUrl() != null) {
+            incident.setVideoUrl(dto.getVideoUrl());
+        }
+
+        incidentRepository.save(incident);
+
+        return convertToResponseDTO(incident);
+    }
+
+    @Transactional
+    public IncidentResponseDTO updateIncidentStatusByUser(Long id, IncidentStatus status, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Incident incident = incidentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        if (!incident.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Access denied");
+        }
+
+        incident.setStatus(status);
+        incidentRepository.save(incident);
+
+        return convertToResponseDTO(incident);
+    }
+
+    @Transactional
+    public CommentResponseDTO addComment(Long incidentId, CommentDTO dto, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new RuntimeException("Incident not found"));
+
+        Comment comment = new Comment(dto.getContent(), incident, user);
+        comment = commentRepository.save(comment);
+
+        return convertToCommentResponseDTO(comment);
     }
 
     private IncidentResponseDTO convertToResponseDTO(Incident incident) {
@@ -107,6 +209,7 @@ public class IncidentService {
         dto.setDescription(incident.getDescription());
         dto.setStatus(incident.getStatus());
         dto.setImages(incident.getImages());
+        dto.setVideoUrl(incident.getVideoUrl());
         dto.setUserId(incident.getUser().getId());
         dto.setUserName(incident.getUser().getName());
         dto.setCreatedAt(incident.getCreatedAt());
@@ -118,11 +221,28 @@ public class IncidentService {
                     incident.getLocation().getDistrict(),
                     incident.getLocation().getUpazila(),
                     incident.getLocation().getLat(),
-                    incident.getLocation().getLng()
-            );
+                    incident.getLocation().getLng());
             dto.setLocation(locationDTO);
         }
 
+        List<Comment> comments = commentRepository.findByIncidentIdOrderByCreatedAtDesc(incident.getId());
+        List<CommentResponseDTO> commentDTOs = comments.stream()
+                .map(this::convertToCommentResponseDTO)
+                .collect(Collectors.toList());
+        dto.setComments(commentDTOs);
+
+        return dto;
+    }
+
+    private CommentResponseDTO convertToCommentResponseDTO(Comment comment) {
+        CommentResponseDTO dto = new CommentResponseDTO();
+        dto.setId(comment.getId());
+        dto.setContent(comment.getContent());
+        dto.setUserId(comment.getUser().getId());
+        dto.setUserName(comment.getUser().getName());
+        dto.setIncidentId(comment.getIncident().getId());
+        dto.setCreatedAt(comment.getCreatedAt());
+        dto.setUpdatedAt(comment.getUpdatedAt());
         return dto;
     }
 }
