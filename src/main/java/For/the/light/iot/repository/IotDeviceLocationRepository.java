@@ -23,4 +23,6 @@ public interface IotDeviceLocationRepository extends JpaRepository<IotDeviceLoca
             Instant deviceTimestamp,
             Double latitude,
             Double longitude);
+
+        long deleteByReceivedAtBefore(Instant cutoff);
 }

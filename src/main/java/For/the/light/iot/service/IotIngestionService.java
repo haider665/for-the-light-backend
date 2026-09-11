@@ -3,11 +3,16 @@ package For.the.light.iot.service;
 import For.the.light.iot.dto.GpsWebhookRequestDto;
 import For.the.light.iot.dto.IotLocationUpdatedEventDto;
 import For.the.light.iot.dto.IotWebhookAckDto;
+import For.the.light.iot.audit.IotWebhookAuditService;
 import For.the.light.iot.entity.IotDevice;
 import For.the.light.iot.entity.IotDeviceLocation;
+import For.the.light.iot.metrics.IotIngestionMetrics;
 import For.the.light.iot.repository.IotDeviceLocationRepository;
 import For.the.light.iot.repository.IotDeviceRepository;
+import For.the.light.iot.security.IotWebhookRateLimiter;
+import For.the.light.iot.security.RateLimitExceededException;
 import For.the.light.iot.websocket.IotLocationWebSocketBroadcaster;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -24,75 +29,104 @@ public class IotIngestionService {
     private final IotDeviceLocationRepository iotDeviceLocationRepository;
     private final IotStatusService iotStatusService;
     private final IotLocationWebSocketBroadcaster iotLocationWebSocketBroadcaster;
+    private final IotWebhookRateLimiter iotWebhookRateLimiter;
+    private final IotWebhookAuditService iotWebhookAuditService;
+    private final IotIngestionMetrics iotIngestionMetrics;
 
     @Transactional
-    public IotWebhookAckDto ingest(GpsWebhookRequestDto request, String authorizationHeader) {
-        String apiKey = extractBearerToken(authorizationHeader);
+    public IotWebhookAckDto ingest(GpsWebhookRequestDto request, String authorizationHeader, String clientIp) {
+        Timer.Sample sample = iotIngestionMetrics.start();
+        try {
+            iotWebhookRateLimiter.check(request.getDeviceId(), clientIp);
+            String apiKey = extractBearerToken(authorizationHeader);
 
-        IotDevice device = iotDeviceRepository.findByDeviceId(request.getDeviceId())
-                .orElseThrow(() -> new IllegalArgumentException("Unknown deviceId"));
+            IotDevice device = iotDeviceRepository.findByDeviceId(request.getDeviceId())
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown deviceId"));
 
-        if (device.getApiKeyHash() == null || !isSecretMatch(apiKey, device.getApiKeyHash())) {
-            throw new SecurityException("Invalid device credentials");
-        }
+            if (device.getApiKeyHash() == null || !isSecretMatch(apiKey, device.getApiKeyHash())) {
+                throw new SecurityException("Invalid device credentials");
+            }
 
-        Instant deviceTimestamp = parseTimestamp(request.getTimestamp());
-        Instant receivedAt = Instant.now();
+            Instant deviceTimestamp = parseTimestamp(request.getTimestamp());
+            Instant receivedAt = Instant.now();
 
-        if (isDuplicate(request, device, deviceTimestamp)) {
+            if (isDuplicate(request, device, deviceTimestamp)) {
+                device.setLastSeen(receivedAt);
+                iotDeviceRepository.save(device);
+
+                IotWebhookAckDto response = IotWebhookAckDto.builder()
+                        .accepted(true)
+                        .duplicate(true)
+                        .deviceId(device.getDeviceId())
+                        .deviceTimestamp(deviceTimestamp)
+                        .receivedAt(receivedAt)
+                        .status(iotStatusService.resolve(device.getLastSeen(), receivedAt))
+                        .message("Duplicate event accepted")
+                        .build();
+                iotIngestionMetrics.recordAccepted(true);
+                return response;
+            }
+
+            IotDeviceLocation location = new IotDeviceLocation();
+            location.setDevice(device);
+            location.setLatitude(request.getLatitude());
+            location.setLongitude(request.getLongitude());
+            location.setDeviceTimestamp(deviceTimestamp);
+            location.setReceivedAt(receivedAt);
+            location.setEventId(request.getEventId());
+            iotDeviceLocationRepository.save(location);
+
             device.setLastSeen(receivedAt);
+            if (device.getLastDeviceTimestamp() == null || deviceTimestamp.isAfter(device.getLastDeviceTimestamp())) {
+                device.setLastDeviceTimestamp(deviceTimestamp);
+                device.setLastLatitude(request.getLatitude());
+                device.setLastLongitude(request.getLongitude());
+            }
+
             iotDeviceRepository.save(device);
 
-            return IotWebhookAckDto.builder()
+            iotLocationWebSocketBroadcaster.broadcast(
+                    IotLocationUpdatedEventDto.builder()
+                            .type("LOCATION_UPDATED")
+                            .deviceId(device.getDeviceId())
+                            .name(device.getName())
+                            .latitude(device.getLastLatitude())
+                            .longitude(device.getLastLongitude())
+                            .timestamp(device.getLastDeviceTimestamp())
+                            .lastSeen(device.getLastSeen())
+                            .status(iotStatusService.resolve(device.getLastSeen(), receivedAt))
+                            .build());
+
+            IotWebhookAckDto response = IotWebhookAckDto.builder()
                     .accepted(true)
-                    .duplicate(true)
+                    .duplicate(false)
                     .deviceId(device.getDeviceId())
                     .deviceTimestamp(deviceTimestamp)
                     .receivedAt(receivedAt)
                     .status(iotStatusService.resolve(device.getLastSeen(), receivedAt))
-                    .message("Duplicate event accepted")
+                    .message("Location ingested")
                     .build();
+            iotIngestionMetrics.recordAccepted(false);
+            return response;
+        } catch (RateLimitExceededException ex) {
+            iotIngestionMetrics.recordRateLimited();
+            iotWebhookAuditService.logFailure("RATE_LIMIT", request.getDeviceId(), clientIp, ex.getMessage());
+            throw ex;
+        } catch (SecurityException ex) {
+            iotIngestionMetrics.recordAuthFailure();
+            iotWebhookAuditService.logFailure("AUTH_FAIL", request.getDeviceId(), clientIp, ex.getMessage());
+            throw ex;
+        } catch (IllegalArgumentException ex) {
+            iotIngestionMetrics.recordValidationFailure();
+            iotWebhookAuditService.logFailure("VALIDATION_FAIL", request.getDeviceId(), clientIp, ex.getMessage());
+            throw ex;
+        } catch (RuntimeException ex) {
+            iotIngestionMetrics.recordUnhandledFailure();
+            iotWebhookAuditService.logFailure("UNHANDLED", request.getDeviceId(), clientIp, ex.getMessage());
+            throw ex;
+        } finally {
+            iotIngestionMetrics.stop(sample);
         }
-
-        IotDeviceLocation location = new IotDeviceLocation();
-        location.setDevice(device);
-        location.setLatitude(request.getLatitude());
-        location.setLongitude(request.getLongitude());
-        location.setDeviceTimestamp(deviceTimestamp);
-        location.setReceivedAt(receivedAt);
-        location.setEventId(request.getEventId());
-        iotDeviceLocationRepository.save(location);
-
-        device.setLastSeen(receivedAt);
-        if (device.getLastDeviceTimestamp() == null || deviceTimestamp.isAfter(device.getLastDeviceTimestamp())) {
-            device.setLastDeviceTimestamp(deviceTimestamp);
-            device.setLastLatitude(request.getLatitude());
-            device.setLastLongitude(request.getLongitude());
-        }
-
-        iotDeviceRepository.save(device);
-
-        iotLocationWebSocketBroadcaster.broadcast(
-            IotLocationUpdatedEventDto.builder()
-                .type("LOCATION_UPDATED")
-                .deviceId(device.getDeviceId())
-                .name(device.getName())
-                .latitude(device.getLastLatitude())
-                .longitude(device.getLastLongitude())
-                .timestamp(device.getLastDeviceTimestamp())
-                .lastSeen(device.getLastSeen())
-                .status(iotStatusService.resolve(device.getLastSeen(), receivedAt))
-                .build());
-
-        return IotWebhookAckDto.builder()
-                .accepted(true)
-                .duplicate(false)
-                .deviceId(device.getDeviceId())
-                .deviceTimestamp(deviceTimestamp)
-                .receivedAt(receivedAt)
-                .status(iotStatusService.resolve(device.getLastSeen(), receivedAt))
-                .message("Location ingested")
-                .build();
     }
 
     private boolean isDuplicate(GpsWebhookRequestDto request, IotDevice device, Instant deviceTimestamp) {
