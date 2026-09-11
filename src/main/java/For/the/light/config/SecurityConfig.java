@@ -47,6 +47,8 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/public/**", "/oauth2/**", "/login**",
                                                                 "/actuator/**", "/csrf")
                                                 .permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/iot/webhook/**").permitAll()
+                                                .requestMatchers("/api/iot/**").hasAuthority("SUPER_ADMIN")
                                                 .requestMatchers(HttpMethod.GET, "/incident/available").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/incident/*").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/program/available").permitAll()

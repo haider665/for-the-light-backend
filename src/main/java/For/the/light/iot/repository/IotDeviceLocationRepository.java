@@ -17,4 +17,10 @@ public interface IotDeviceLocationRepository extends JpaRepository<IotDeviceLoca
             Pageable pageable);
 
     Optional<IotDeviceLocation> findByDeviceAndEventId(IotDevice device, String eventId);
+
+    boolean existsByDeviceAndDeviceTimestampAndLatitudeAndLongitude(
+            IotDevice device,
+            Instant deviceTimestamp,
+            Double latitude,
+            Double longitude);
 }
