@@ -12,7 +12,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
+import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenDecoderFactory;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.web.SecurityFilterChain;
+import java.time.Duration;
 import java.util.List;
 
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -35,6 +44,9 @@ public class SecurityConfig {
 
         @Value("${app.custom.frontend-uri}")
         private String frontEndUri;
+
+        @Value("${app.oauth2.id-token-clock-skew-seconds:180}")
+        private long idTokenClockSkewSeconds;
 
         @Bean
         SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -66,6 +78,21 @@ public class SecurityConfig {
                                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
                 return http.build();
+        }
+
+        @Bean
+        JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory() {
+                var jwtDecoderFactory = new OidcIdTokenDecoderFactory();
+
+                jwtDecoderFactory.setJwtValidatorFactory(clientRegistration -> {
+                        Duration clockSkew = Duration.ofSeconds(idTokenClockSkewSeconds);
+                        OAuth2TokenValidator<Jwt> timestampValidator = new JwtTimestampValidator(clockSkew);
+                        OidcIdTokenValidator oidcValidator = new OidcIdTokenValidator(clientRegistration);
+                        oidcValidator.setClockSkew(clockSkew);
+                        return new DelegatingOAuth2TokenValidator<>(timestampValidator, oidcValidator);
+                });
+
+                return jwtDecoderFactory;
         }
 
         @Bean

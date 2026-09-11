@@ -52,6 +52,8 @@ logging:
     org.springframework.security.oauth2.core: TRACE
 
 app:
+  oauth2:
+    id-token-clock-skew-seconds: ${OAUTH2_ID_TOKEN_CLOCK_SKEW_SECONDS:180}
   custom:
     frontend-uri: ${FRONTEND_URI:http://localhost:5173}
     redirect-uri: ${REDIRECT_URI:http://localhost:5173/dashboard}
