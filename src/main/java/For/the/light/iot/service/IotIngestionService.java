@@ -1,11 +1,13 @@
 package For.the.light.iot.service;
 
 import For.the.light.iot.dto.GpsWebhookRequestDto;
+import For.the.light.iot.dto.IotLocationUpdatedEventDto;
 import For.the.light.iot.dto.IotWebhookAckDto;
 import For.the.light.iot.entity.IotDevice;
 import For.the.light.iot.entity.IotDeviceLocation;
 import For.the.light.iot.repository.IotDeviceLocationRepository;
 import For.the.light.iot.repository.IotDeviceRepository;
+import For.the.light.iot.websocket.IotLocationWebSocketBroadcaster;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ public class IotIngestionService {
     private final IotDeviceRepository iotDeviceRepository;
     private final IotDeviceLocationRepository iotDeviceLocationRepository;
     private final IotStatusService iotStatusService;
+    private final IotLocationWebSocketBroadcaster iotLocationWebSocketBroadcaster;
 
     @Transactional
     public IotWebhookAckDto ingest(GpsWebhookRequestDto request, String authorizationHeader) {
@@ -68,6 +71,18 @@ public class IotIngestionService {
         }
 
         iotDeviceRepository.save(device);
+
+        iotLocationWebSocketBroadcaster.broadcast(
+            IotLocationUpdatedEventDto.builder()
+                .type("LOCATION_UPDATED")
+                .deviceId(device.getDeviceId())
+                .name(device.getName())
+                .latitude(device.getLastLatitude())
+                .longitude(device.getLastLongitude())
+                .timestamp(device.getLastDeviceTimestamp())
+                .lastSeen(device.getLastSeen())
+                .status(iotStatusService.resolve(device.getLastSeen(), receivedAt))
+                .build());
 
         return IotWebhookAckDto.builder()
                 .accepted(true)
