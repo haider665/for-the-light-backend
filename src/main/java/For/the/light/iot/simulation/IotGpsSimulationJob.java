@@ -76,7 +76,7 @@ public class IotGpsSimulationJob {
     private static final double RETURN_MIN = 3.0 * KNOT_TO_KM_PER_MIN;  // ~0.093 km/min
     private static final double RETURN_MAX = 4.0 * KNOT_TO_KM_PER_MIN;  // ~0.123 km/min
 
-    @Scheduled(fixedRate = 60_000, initialDelay = 5_000)
+    @Scheduled(fixedRate = 600_000, initialDelay = 5_000)
     @Transactional
     public void simulate() {
         List<IotDevice> devices = deviceRepository.findAll();
