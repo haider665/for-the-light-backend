@@ -42,6 +42,7 @@ public class IotWebhookController {
             HttpServletRequest httpServletRequest,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         String clientIp = extractClientIp(httpServletRequest);
+        log.info("[Webhook] GPS request from ip={} | body={}", clientIp, request);
         try {
             IotWebhookAckDto response = iotIngestionService.ingest(request, authorization, clientIp);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
