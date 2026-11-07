@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -35,17 +36,21 @@ public class IotIngestionService {
         Timer.Sample sample = iotIngestionMetrics.start();
         try {
             iotWebhookRateLimiter.check(request.getDeviceId(), clientIp);
-            String apiKey = extractBearerToken(authorizationHeader);
+            // TODO: Re-enable when device supports bearer token auth
+            // String apiKey = extractBearerToken(authorizationHeader);
 
             IotDevice device = iotDeviceRepository.findByDeviceId(request.getDeviceId())
                     .orElseThrow(() -> new IllegalArgumentException("Unknown deviceId"));
 
-            if (device.getApiKeyHash() == null || !isSecretMatch(apiKey, device.getApiKeyHash())) {
-                throw new SecurityException("Invalid device credentials");
-            }
+            // TODO: Re-enable when device supports bearer token auth
+            // if (device.getApiKeyHash() == null || !isSecretMatch(apiKey, device.getApiKeyHash())) {
+            //     throw new SecurityException("Invalid device credentials");
+            // }
 
-            Instant deviceTimestamp = parseTimestamp(request.getTimestamp());
             Instant receivedAt = Instant.now();
+            Instant deviceTimestamp = (request.getTimestamp() != null && !request.getTimestamp().isBlank())
+                    ? parseTimestamp(request.getTimestamp())
+                    : receivedAt;
 
             if (isDuplicate(request, device, deviceTimestamp)) {
                 device.setLastSeen(receivedAt);
@@ -70,7 +75,10 @@ public class IotIngestionService {
             location.setLongitude(request.getLongitude());
             location.setDeviceTimestamp(deviceTimestamp);
             location.setReceivedAt(receivedAt);
-            location.setEventId(request.getEventId());
+            String eventId = (request.getEventId() != null && !request.getEventId().isBlank())
+                    ? request.getEventId()
+                    : request.getDeviceId() + "-" + UUID.randomUUID().toString().substring(0, 8);
+            location.setEventId(eventId);
             iotDeviceLocationRepository.save(location);
 
             device.setLastSeen(receivedAt);
