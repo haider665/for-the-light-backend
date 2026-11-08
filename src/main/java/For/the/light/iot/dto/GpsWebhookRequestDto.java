@@ -32,4 +32,25 @@ public class GpsWebhookRequestDto {
 
     // Optional — if not sent by device, server uses Instant.now()
     private String timestamp;
+
+    // Extra telemetry fields — accepted for logging, not persisted to DB yet
+    private String emergency;
+
+    private Double altitude;
+
+    @JsonProperty("speed_kmh")
+    private Double speedKmh;
+
+    private Integer satellites;
+
+    @JsonProperty("battery_voltage")
+    private Double batteryVoltage;
+
+    @JsonProperty("battery_percent")
+    private Integer batteryPercent;
+
+    @JsonProperty("charge_status")
+    private String chargeStatus;
+
+    private String source;
 }

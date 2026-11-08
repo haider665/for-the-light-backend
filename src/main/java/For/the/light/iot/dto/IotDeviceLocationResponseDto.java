@@ -11,4 +11,5 @@ public class IotDeviceLocationResponseDto {
     private Instant deviceTimestamp;
     private Instant receivedAt;
     private String eventId;
+    private String emergency;
 }

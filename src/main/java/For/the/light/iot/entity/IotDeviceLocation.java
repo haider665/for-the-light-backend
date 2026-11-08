@@ -47,6 +47,9 @@ public class IotDeviceLocation {
     @Column(name = "event_id", length = 150)
     private String eventId;
 
+    @Column(name = "emergency", length = 10)
+    private String emergency;
+
     @CreationTimestamp
     @Column(name = "created", nullable = false, updatable = false)
     private Instant created;

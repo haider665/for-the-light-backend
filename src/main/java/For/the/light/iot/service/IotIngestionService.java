@@ -47,6 +47,18 @@ public class IotIngestionService {
             //     throw new SecurityException("Invalid device credentials");
             // }
 
+            // Skip when GPS has no fix (0, 0)
+            if (request.getLatitude() == 0.0 && request.getLongitude() == 0.0) {
+                return IotWebhookAckDto.builder()
+                        .accepted(true)
+                        .duplicate(false)
+                        .deviceId(device.getDeviceId())
+                        .deviceTimestamp(Instant.now())
+                        .receivedAt(Instant.now())
+                        .message("Ignored — no GPS fix (0, 0)")
+                        .build();
+            }
+
             Instant receivedAt = Instant.now();
             Instant deviceTimestamp = (request.getTimestamp() != null && !request.getTimestamp().isBlank())
                     ? parseTimestamp(request.getTimestamp())
@@ -79,9 +91,11 @@ public class IotIngestionService {
                     ? request.getEventId()
                     : request.getDeviceId() + "-" + UUID.randomUUID().toString().substring(0, 8);
             location.setEventId(eventId);
+            location.setEmergency(request.getEmergency());
             iotDeviceLocationRepository.save(location);
 
             device.setLastSeen(receivedAt);
+            device.setLastEmergency(request.getEmergency());
             if (device.getLastDeviceTimestamp() == null || deviceTimestamp.isAfter(device.getLastDeviceTimestamp())) {
                 device.setLastDeviceTimestamp(deviceTimestamp);
                 device.setLastLatitude(request.getLatitude());

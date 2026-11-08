@@ -14,4 +14,5 @@ public class IotDeviceResponseDto {
     private Instant lastSeen;
     private Instant lastDeviceTimestamp;
     private DeviceLiveStatus status;
+    private String emergency;
 }

@@ -48,6 +48,9 @@ public class IotDevice {
     @Column(name = "last_seen")
     private Instant lastSeen;
 
+    @Column(name = "last_emergency", length = 10)
+    private String lastEmergency;
+
     @CreationTimestamp
     @Column(name = "created", nullable = false, updatable = false)
     private Instant created;

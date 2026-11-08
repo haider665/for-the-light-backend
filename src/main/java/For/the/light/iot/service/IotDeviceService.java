@@ -108,6 +108,7 @@ public class IotDeviceService {
         dto.setLastSeen(device.getLastSeen());
         dto.setLastDeviceTimestamp(device.getLastDeviceTimestamp());
         dto.setStatus(iotStatusService.resolve(device.getLastSeen(), now));
+        dto.setEmergency(device.getLastEmergency());
         return dto;
     }
 
@@ -118,6 +119,7 @@ public class IotDeviceService {
         dto.setDeviceTimestamp(location.getDeviceTimestamp());
         dto.setReceivedAt(location.getReceivedAt());
         dto.setEventId(location.getEventId());
+        dto.setEmergency(location.getEmergency());
         return dto;
     }
 }
